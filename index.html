@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>REU-SET.25 Abertura</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            color: #1f2937;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+            padding: 2rem;
+        }
+        .header {
+            background-color: #10b981;
+            color: white;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            text-align: center;
+        }
+        .section-card {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1.5rem;
+        }
+        .topic-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            padding: 1rem 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .topic-header:hover {
+            background-color: #f9fafb;
+        }
+        .input-group {
+            margin-top: 1rem;
+        }
+        .input-group textarea {
+            width: 100%;
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            resize: vertical;
+            transition: all 0.2s ease;
+        }
+        .input-group textarea:focus {
+            outline: none;
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+        }
+        .submit-btn {
+            background-color: #3b82f6;
+            color: white;
+            font-weight: bold;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .submit-btn:hover {
+            background-color: #2563eb;
+        }
+        .save-btn {
+            background-color: #10b981;
+            color: white;
+            font-weight: bold;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .save-btn:hover {
+            background-color: #059669;
+        }
+        .note {
+            background-color: #f3f4f6;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin-top: 0.5rem;
+            white-space: pre-wrap;
+            position: relative;
+        }
+        .note .delete-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            color: #ef4444;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            max-width: 500px;
+            text-align: center;
+            position: relative;
+        }
+        .modal-close-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #9ca3af;
+        }
+        .status-box {
+            background-color: #e2e8f0;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+            font-size: 0.875rem;
+            text-align: left;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <!-- Modal for displaying messages -->
+    <div id="message-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="modal-close-btn" onclick="closeModal()">&times;</span>
+            <p id="modal-message" class="text-xl font-semibold text-gray-700"></p>
+        </div>
+    </div>
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="header bg-emerald-500 rounded-xl shadow-lg mb-8 p-6">
+            <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight">REU-SET.25 Abertura</h1>
+            <p class="mt-2 text-base md:text-lg font-light">Pauta da Reunião com os Sócios - Acordo de Parceria</p>
+        </header>
+
+        <!-- Status Box para informar o usuário sobre a conexão e o ID -->
+        <div class="status-box">
+            <p><strong>Status de Conexão:</strong> <span id="connection-status">Conectando...</span></p>
+            <p><strong>Seu ID de Usuário:</strong> <span id="user-id">Carregando...</span></p>
+        </div>
+
+        <main id="main-content">
+            <!-- As seções serão geradas dinamicamente aqui -->
+        </main>
+
+        <div class="mt-8 text-center">
+            <button onclick="saveDocument()" class="save-btn font-bold py-3 px-6 rounded-lg shadow-md hover:shadow-xl transition-transform transform hover:-translate-y-1">
+                Salvar e Exportar para PDF
+            </button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        
+        // Globais fornecidas pelo ambiente. O Canvas injeta esses valores.
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        let app = null;
+        let db = null;
+        let auth = null;
+        let userId = null;
+        let isAuthReady = false;
+
+        const pauta = [
+            {
+                id: 'p1',
+                title: 'Papéis e Responsabilidades',
+                items: [
+                    'Definição de Funções: Atribuir uma área principal de responsabilidade para cada sócio (ex: Financeiro, Vendas, Produção, Marketing).',
+                    'Tarefas Indesejadas: Discutir e decidir como serão resolvidas as tarefas que ninguém quer assumir.'
+                ]
+            },
+            {
+                id: 'p2',
+                title: 'Jornada de Trabalho e Horários',
+                items: [
+                    'Horário da Gráfica: Estabelecer o horário de funcionamento do espaço.',
+                    'Presença dos Sócios: Acordar se haverá um horário mínimo de presença de todos e como será feita a escala.'
+                ]
+            },
+            {
+                id: 'p3',
+                title: 'Acordo Societário',
+                items: [
+                    'Documento Formal: Discutir a necessidade de um acordo simples que defina direitos e deveres.',
+                    'Saída de um Sócio: Delimitar o que acontece caso alguém decida sair da sociedade no futuro.'
+                ]
+            },
+            {
+                id: 'p4',
+                title: 'Finanças e Contabilidade',
+                items: [
+                    'Aportes de Capital: Confirmar o investimento inicial de cada sócio.',
+                    'Conta Bancária: Decidir a gestão do caixa e quem será o responsável.',
+                    'Distribuição de Lucros: Estabelecer a periodicidade e o método de distribuição.',
+                    'Fundo de Reserva: Acordar a porcentagem do lucro que será destinada ao fundo de reserva.'
+                ]
+            },
+            {
+                id: 'p5',
+                title: 'Operação e Gestão',
+                items: [
+                    'Política de Preços: Criar uma tabela padronizada para os serviços.',
+                    'Tomada de Decisão: Definir um método para resolver impasses de votação.',
+                    'Uso do Espaço/Equipamentos: Criar regras para o uso dos equipamentos da gráfica em trabalhos pessoais.',
+                    'Reuniões: Agendar reuniões periódicas para acompanhamento.'
+                ]
+            }
+        ];
+
+        window.onload = async () => {
+            // Verifica se a configuração do Firebase foi fornecida pelo ambiente.
+            if (firebaseConfig) {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                setupAuthListener();
+                renderPauta();
+                document.getElementById('connection-status').innerText = 'Conectado';
+            } else {
+                // Se não houver configuração, exibe uma mensagem de erro na interface
+                // e não tenta inicializar o Firebase.
+                document.getElementById('connection-status').innerText = 'Erro na Configuração';
+                document.getElementById('connection-status').classList.add('text-red-600', 'font-bold');
+                document.getElementById('user-id').innerText = 'Não disponível';
+                showMessage('Erro: A configuração do Firebase não foi encontrada. O aplicativo não pode se conectar ao banco de dados em tempo real. Por favor, recarregue a página.');
+                renderPauta(); // Renderiza a pauta mesmo sem o banco de dados
+            }
+        };
+
+        function setupAuthListener() {
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    userId = user.uid;
+                    isAuthReady = true;
+                    document.getElementById('user-id').innerText = userId;
+                    // Habilita campos e botões após a autenticação
+                    toggleInputElements(true);
+                    // Escuta por notas e decisões para todos os tópicos
+                    pauta.forEach(topic => {
+                        listenForNotes(topic.id);
+                        listenForDecisions(topic.id);
+                    });
+                } else {
+                    try {
+                         if (initialAuthToken) {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (error) {
+                        console.error('Erro na autenticação:', error);
+                        showMessage('Erro na autenticação. Tente novamente.');
+                    }
+                }
+            });
+        }
+
+        function toggleInputElements(enabled) {
+            const textareas = document.querySelectorAll('textarea');
+            const buttons = document.querySelectorAll('.submit-btn');
+            textareas.forEach(el => el.disabled = !enabled);
+            buttons.forEach(el => el.disabled = !enabled);
+        }
+
+        function renderPauta() {
+            const container = document.getElementById('main-content');
+            container.innerHTML = '';
+            pauta.forEach(section => {
+                const sectionEl = document.createElement('div');
+                sectionEl.className = 'section-card';
+                sectionEl.innerHTML = `
+                    <h2 class="text-2xl font-bold mb-4 text-gray-800">${section.title}</h2>
+                    <ul class="list-disc ml-6 space-y-2 text-gray-700">
+                        ${section.items.map(item => `<li>${item}</li>`).join('')}
+                    </ul>
+                    <div class="mt-6">
+                        <h3 class="text-xl font-semibold mb-2 text-gray-700">Decisão Acordada</h3>
+                        <div id="decisions-${section.id}" class="space-y-2"></div>
+                        <div class="input-group">
+                            <textarea id="decision-input-${section.id}" placeholder="Escreva a decisão final..." rows="2" disabled></textarea>
+                            <button id="add-decision-btn-${section.id}" onclick="addDecision('${section.id}')" class="submit-btn mt-2" disabled>Adicionar Decisão</button>
+                        </div>
+                    </div>
+                    <div class="mt-6">
+                        <h3 class="text-xl font-semibold mb-2 text-gray-700">Notas e Opiniões</h3>
+                        <div id="notes-${section.id}" class="space-y-2"></div>
+                        <div class="input-group">
+                            <textarea id="note-input-${section.id}" placeholder="Adicione sua opinião em tempo real..." rows="3" disabled></textarea>
+                            <button id="add-note-btn-${section.id}" onclick="addNote('${section.id}')" class="submit-btn mt-2" disabled>Adicionar Nota</button>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(sectionEl);
+            });
+        }
+
+        window.addNote = async (topicId) => {
+            const btn = document.getElementById(`add-note-btn-${topicId}`);
+            if (!isAuthReady) {
+                showMessage('Autenticação em andamento ou erro de conexão. Por favor, aguarde ou recarregue a página.');
+                return;
+            }
+            const noteInput = document.getElementById(`note-input-${topicId}`);
+            const noteText = noteInput.value.trim();
+            if (noteText) {
+                btn.disabled = true;
+                btn.innerText = 'Salvando...';
+                try {
+                    const notesCollection = collection(db, `artifacts/${appId}/public/data/notes`);
+                    await addDoc(notesCollection, {
+                        topicId,
+                        content: noteText,
+                        authorId: userId,
+                        timestamp: new Date()
+                    });
+                    noteInput.value = '';
+                } catch (e) {
+                    console.error("Erro ao adicionar nota:", e);
+                    showMessage(`Erro ao adicionar a nota. Tente novamente. Detalhes: ${e.message}`);
+                } finally {
+                    btn.disabled = false;
+                    btn.innerText = 'Adicionar Nota';
+                }
+            } else {
+                showMessage('A nota não pode ser vazia.');
+            }
+        };
+
+        window.addDecision = async (topicId) => {
+            const btn = document.getElementById(`add-decision-btn-${topicId}`);
+            if (!isAuthReady) {
+                showMessage('Autenticação em andamento ou erro de conexão. Por favor, aguarde ou recarregue a página.');
+                return;
+            }
+            const decisionInput = document.getElementById(`decision-input-${topicId}`);
+            const decisionText = decisionInput.value.trim();
+            if (decisionText) {
+                btn.disabled = true;
+                btn.innerText = 'Salvando...';
+                try {
+                    const decisionsCollection = collection(db, `artifacts/${appId}/public/data/decisions`);
+                    await addDoc(decisionsCollection, {
+                        topicId,
+                        content: decisionText,
+                        authorId: userId,
+                        timestamp: new Date()
+                    });
+                    decisionInput.value = '';
+                } catch (e) {
+                    console.error("Erro ao adicionar decisão:", e);
+                    showMessage(`Erro ao adicionar a decisão. Tente novamente. Detalhes: ${e.message}`);
+                } finally {
+                    btn.disabled = false;
+                    btn.innerText = 'Adicionar Decisão';
+                }
+            } else {
+                showMessage('A decisão não pode ser vazia.');
+            }
+        };
+
+        function listenForNotes(topicId) {
+            if (!isAuthReady) return;
+            const notesCollection = collection(db, `artifacts/${appId}/public/data/notes`);
+            const q = query(notesCollection);
+            onSnapshot(q, (snapshot) => {
+                const notesContainer = document.getElementById(`notes-${topicId}`);
+                if (!notesContainer) return;
+                notesContainer.innerHTML = '';
+                const notes = [];
+                snapshot.forEach(doc => {
+                    notes.push({ id: doc.id, ...doc.data() });
+                });
+                notes.sort((a, b) => a.timestamp.toDate() - b.timestamp.toDate());
+                notes.filter(note => note.topicId === topicId).forEach(note => {
+                    const noteElement = document.createElement('div');
+                    noteElement.className = 'note';
+                    let deleteButton = '';
+                    // Verifica se o ID do usuário atual corresponde ao autor da nota para permitir a exclusão
+                    if (note.authorId === userId) {
+                        deleteButton = `<span onclick="deleteNote('${note.id}', '${note.authorId}')" class="delete-btn">x</span>`;
+                    }
+                    noteElement.innerHTML = `<p>${note.content}</p>${deleteButton}`;
+                    notesContainer.appendChild(noteElement);
+                });
+            });
+        }
+
+        function listenForDecisions(topicId) {
+            if (!isAuthReady) return;
+            const decisionsCollection = collection(db, `artifacts/${appId}/public/data/decisions`);
+            const q = query(decisionsCollection);
+            onSnapshot(q, (snapshot) => {
+                const decisionsContainer = document.getElementById(`decisions-${topicId}`);
+                if (!decisionsContainer) return;
+                decisionsContainer.innerHTML = '';
+                const decisions = [];
+                snapshot.forEach(doc => {
+                    decisions.push({ id: doc.id, ...doc.data() });
+                });
+                decisions.sort((a, b) => a.timestamp.toDate() - b.timestamp.toDate());
+                decisions.filter(decision => decision.topicId === topicId).forEach(decision => {
+                    const decisionElement = document.createElement('div');
+                    decisionElement.className = 'note bg-blue-100';
+                    let deleteButton = '';
+                    // Verifica se o ID do usuário atual corresponde ao autor da decisão para permitir a exclusão
+                    if (decision.authorId === userId) {
+                        deleteButton = `<span onclick="deleteDecision('${decision.id}', '${decision.authorId}')" class="delete-btn">x</span>`;
+                    }
+                    decisionElement.innerHTML = `<p>${decision.content}</p>${deleteButton}`;
+                    decisionsContainer.appendChild(decisionElement);
+                });
+            });
+        }
+
+        window.deleteNote = async (id, authorId) => {
+            // Verifica se o usuário atual é o autor da nota antes de tentar deletar
+            if (userId !== authorId) {
+                showMessage('Você só pode deletar as notas que você mesmo criou.');
+                return;
+            }
+            if (!isAuthReady) {
+                showMessage('Autenticação em andamento ou erro de conexão. Por favor, aguarde ou recarregue a página.');
+                return;
+            }
+            try {
+                const noteRef = doc(db, `artifacts/${appId}/public/data/notes`, id);
+                await deleteDoc(noteRef);
+            } catch (e) {
+                console.error("Erro ao deletar nota:", e);
+                showMessage('Erro ao deletar a nota. Tente novamente.');
+            }
+        };
+
+        window.deleteDecision = async (id, authorId) => {
+            // Verifica se o usuário atual é o autor da decisão antes de tentar deletar
+            if (userId !== authorId) {
+                showMessage('Você só pode deletar as decisões que você mesmo criou.');
+                return;
+            }
+            if (!isAuthReady) {
+                showMessage('Autenticação em andamento ou erro de conexão. Por favor, aguarde ou recarregue a página.');
+                return;
+            }
+            try {
+                const decisionRef = doc(db, `artifacts/${appId}/public/data/decisions`, id);
+                await deleteDoc(decisionRef);
+            } catch (e) {
+                console.error("Erro ao deletar decisão:", e);
+                showMessage('Erro ao deletar a decisão. Tente novamente.');
+            }
+        };
+
+        window.saveDocument = async () => {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            let y = 10;
+            const margin = 10;
+
+            doc.setFontSize(22);
+            doc.text("REU-SET.25 Abertura", 105, y, null, null, "center");
+            y += 10;
+            doc.setFontSize(14);
+            doc.text("Pauta da Reunião com os Sócios - Acordo de Parceria", 105, y, null, null, "center");
+            y += 20;
+
+            for (const section of pauta) {
+                doc.setFontSize(16);
+                doc.text(section.title, margin, y);
+                y += 10;
+
+                doc.setFontSize(12);
+                doc.text("Tópicos:", margin, y);
+                y += 5;
+
+                for (const item of section.items) {
+                    const lines = doc.splitTextToSize(item, 180);
+                    doc.text(lines, margin + 5, y);
+                    y += (lines.length * 5) + 5;
+                }
+
+                doc.text("Decisão Acordada:", margin, y);
+                y += 5;
+                const decisionsContainer = document.getElementById(`decisions-${section.id}`);
+                if (decisionsContainer) {
+                    const decisions = decisionsContainer.innerText.trim();
+                    if (decisions) {
+                        const lines = doc.splitTextToSize(decisions, 180);
+                        doc.text(lines, margin + 5, y);
+                        y += (lines.length * 5) + 5;
+                    } else {
+                        doc.text("Nenhuma decisão registrada.", margin + 5, y);
+                        y += 10;
+                    }
+                }
+
+                doc.text("Notas e Opiniões:", margin, y);
+                y += 5;
+                const notesContainer = document.getElementById(`notes-${section.id}`);
+                if (notesContainer) {
+                    const notes = notesContainer.innerText.trim();
+                    if (notes) {
+                        const lines = doc.splitTextToSize(notes, 180);
+                        doc.text(lines, margin + 5, y);
+                        y += (lines.length * 5) + 5;
+                    } else {
+                        doc.text("Nenhuma nota registrada.", margin + 5, y);
+                        y += 10;
+                    }
+                }
+                if (y > 280) { // New page if content exceeds height
+                    doc.addPage();
+                    y = 10;
+                }
+            }
+
+            doc.save("reuniao_reus.pdf");
+            showMessage('Documento salvo como PDF com sucesso!');
+        };
+
+        function showMessage(message) {
+            const modal = document.getElementById('message-modal');
+            const modalMessage = document.getElementById('modal-message');
+            modalMessage.innerText = message;
+            modal.classList.remove('hidden');
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('message-modal');
+            modal.classList.add('hidden');
+        }
+        window.closeModal = closeModal;
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.3.1/jspdf.umd.min.js"></script>
+</body>
+</html>
