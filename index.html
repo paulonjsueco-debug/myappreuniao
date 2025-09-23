@@ -1,559 +1,431 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>REU-SET.25 Abertura</title>
+    <title>Reunião de Sócios</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
+        // TODO: Add SDKs for Firebase products that you want to use
+        // https://firebase.google.com/docs/web/setup#available-libraries
+
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDTPoCkmk4fGfXaDzy15NCCMujG83LAqIM",
+            authDomain: "minha1app.firebaseapp.com",
+            projectId: "minha1app",
+            storageBucket: "minha1app.firebasestorage.app",
+            messagingSenderId: "268276863555",
+            appId: "1:268276863555:web:a336a989133aed3ce6faf6"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+
+        // Inicializa Firebase
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        let userId = null;
+        let userRole = null;
+        let userName = null;
+        let idNumber = null;
+
+        // Seção de UI
+        const loginSection = document.getElementById('login-section');
+        const registerSection = document.getElementById('register-section');
+        const meetingSection = document.getElementById('meeting-section');
+        const registerForm = document.getElementById('register-form');
+        const loginForm = document.getElementById('login-form');
+        const meetingForm = document.getElementById('meeting-form');
+        const topicsList = document.getElementById('topics-list');
+        const commentsList = document.getElementById('comments-list');
+        const currentUserNameEl = document.getElementById('current-user-name');
+        const currentUserIdEl = document.getElementById('current-user-id');
+        const logoutBtn = document.getElementById('logout-btn');
+
+        // Navegação entre seções
+        document.getElementById('show-register').addEventListener('click', () => {
+            loginSection.classList.add('hidden');
+            registerSection.classList.remove('hidden');
+        });
+        document.getElementById('show-login').addEventListener('click', () => {
+            registerSection.classList.add('hidden');
+            loginSection.classList.remove('hidden');
+        });
+
+        // Lógica de Autenticação
+        const HOST_PASSWORD = "Reuniao2025@";
+
+        async function registerUser(e) {
+            e.preventDefault();
+            const name = document.getElementById('register-name').value;
+            const id = document.getElementById('register-id').value;
+            const password = document.getElementById('register-password').value;
+
+            try {
+                // Checa se o usuário já existe no banco de dados
+                const userDocRef = doc(db, `/artifacts/${appId}/users/${auth.currentUser.uid}/users/${id}`);
+                const userDocSnap = await getDoc(userDocRef);
+
+                if (userDocSnap.exists()) {
+                    showMessage('ID de sócio já existe. Por favor, faça login ou use outro ID.', 'error');
+                    return;
+                }
+
+                const role = password === HOST_PASSWORD ? 'host' : 'member';
+                await setDoc(userDocRef, {
+                    name,
+                    idNumber: id,
+                    password,
+                    role,
+                    createdAt: serverTimestamp()
+                });
+
+                showMessage('Cadastro realizado com sucesso! Por favor, faça login.', 'success');
+                registerForm.reset();
+                loginSection.classList.remove('hidden');
+                registerSection.classList.add('hidden');
+            } catch (error) {
+                console.error("Erro ao cadastrar:", error);
+                showMessage('Erro ao cadastrar. Tente novamente.', 'error');
+            }
+        }
+
+        async function loginUser(e) {
+            e.preventDefault();
+            const id = document.getElementById('login-id').value;
+            const password = document.getElementById('login-password').value;
+
+            try {
+                // Busca o documento do usuário
+                const userDocRef = doc(db, `/artifacts/${appId}/users/${auth.currentUser.uid}/users/${id}`);
+                const userDocSnap = await getDoc(userDocRef);
+
+                if (!userDocSnap.exists() || userDocSnap.data().password !== password) {
+                    showMessage('ID ou senha incorretos.', 'error');
+                    return;
+                }
+
+                const userData = userDocSnap.data();
+                userId = auth.currentUser.uid;
+                userRole = userData.role;
+                userName = userData.name;
+                idNumber = userData.idNumber;
+
+                showMeetingApp();
+                showMessage('Login realizado com sucesso!', 'success');
+            } catch (error) {
+                console.error("Erro ao fazer login:", error);
+                showMessage('Erro ao fazer login. Tente novamente.', 'error');
+            }
+        }
+
+        function showMeetingApp() {
+            loginSection.classList.add('hidden');
+            registerSection.classList.add('hidden');
+            meetingSection.classList.remove('hidden');
+            currentUserNameEl.textContent = `Olá, ${userName}`;
+            currentUserIdEl.textContent = `Seu ID de Usuário (compartilhe com os sócios): ${userId}`;
+            loadTopics();
+        }
+
+        function showLoginPage() {
+            meetingSection.classList.add('hidden');
+            loginSection.classList.remove('hidden');
+            userId = null;
+            userRole = null;
+            userName = null;
+            idNumber = null;
+        }
+
+        logoutBtn.addEventListener('click', showLoginPage);
+        registerForm.addEventListener('submit', registerUser);
+        loginForm.addEventListener('submit', loginUser);
+
+        // Lógica dos Comentários e Tópicos
+        let activeTopicId = null;
+
+        function loadTopics() {
+            const topicsCollection = collection(db, `/artifacts/${appId}/public/data/topics`);
+            const topicsQuery = query(topicsCollection, orderBy('createdAt', 'asc'));
+
+            onSnapshot(topicsQuery, (snapshot) => {
+                topicsList.innerHTML = '';
+                snapshot.forEach(doc => {
+                    const topic = doc.data();
+                    const topicBtn = document.createElement('button');
+                    topicBtn.className = `p-2 my-1 rounded-lg w-full text-left transition-colors duration-200 ${activeTopicId === doc.id ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-800 hover:bg-indigo-500 hover:text-white'}`;
+                    topicBtn.textContent = topic.title;
+                    topicBtn.addEventListener('click', () => {
+                        activeTopicId = doc.id;
+                        loadComments(activeTopicId);
+                        // Re-renderiza os botões para atualizar o estado ativo
+                        document.querySelectorAll('#topics-list button').forEach(btn => {
+                            btn.classList.remove('bg-indigo-600', 'text-white');
+                            btn.classList.add('bg-gray-200', 'text-gray-800');
+                        });
+                        topicBtn.classList.add('bg-indigo-600', 'text-white');
+                        topicBtn.classList.remove('bg-gray-200', 'text-gray-800');
+                    });
+                    topicsList.appendChild(topicBtn);
+                });
+
+                // Se houver tópicos e nenhum estiver ativo, ativa o primeiro
+                if (snapshot.docs.length > 0 && !activeTopicId) {
+                    activeTopicId = snapshot.docs[0].id;
+                    loadComments(activeTopicId);
+                    topicsList.querySelector('button').classList.remove('bg-gray-200', 'text-gray-800');
+                    topicsList.querySelector('button').classList.add('bg-indigo-600', 'text-white');
+                }
+            });
+        }
+
+        function loadComments(topicId) {
+            const commentsCollection = collection(db, `/artifacts/${appId}/public/data/comments`);
+            const commentsQuery = query(commentsCollection, orderBy('createdAt', 'asc'));
+
+            onSnapshot(commentsQuery, (snapshot) => {
+                commentsList.innerHTML = '';
+                const topicComments = snapshot.docs
+                    .filter(doc => doc.data().topicId === topicId)
+                    .map(doc => ({ id: doc.id, ...doc.data() }));
+
+                if (topicComments.length === 0) {
+                    commentsList.innerHTML = '<p class="text-center text-gray-500">Nenhum comentário ainda. Seja o primeiro a adicionar uma opinião!</p>';
+                } else {
+                    topicComments.forEach(comment => {
+                        const commentEl = document.createElement('div');
+                        commentEl.className = 'bg-gray-100 p-4 rounded-lg shadow mb-3';
+
+                        const commentHeader = document.createElement('div');
+                        commentHeader.className = 'flex justify-between items-center mb-2';
+
+                        const commentAuthor = document.createElement('span');
+                        commentAuthor.className = 'font-semibold';
+                        commentAuthor.textContent = `${comment.userName} (${comment.userRole === 'host' ? 'Host' : 'Sócio'})`;
+
+                        commentHeader.appendChild(commentAuthor);
+
+                        if (userRole === 'host') {
+                            const deleteBtn = document.createElement('button');
+                            deleteBtn.className = 'text-red-500 hover:text-red-700 transition-colors duration-200';
+                            deleteBtn.textContent = 'Excluir';
+                            deleteBtn.addEventListener('click', async () => {
+                                try {
+                                    await deleteDoc(doc(db, `/artifacts/${appId}/public/data/comments/${comment.id}`));
+                                    showMessage('Comentário excluído!', 'success');
+                                } catch (error) {
+                                    console.error('Erro ao excluir comentário:', error);
+                                    showMessage('Erro ao excluir comentário. Tente novamente.', 'error');
+                                }
+                            });
+                            commentHeader.appendChild(deleteBtn);
+                        }
+
+                        commentEl.appendChild(commentHeader);
+
+                        const commentText = document.createElement('p');
+                        commentText.className = 'text-gray-700 whitespace-pre-wrap';
+                        commentText.textContent = comment.commentText;
+
+                        commentEl.appendChild(commentText);
+                        commentsList.appendChild(commentEl);
+                    });
+                }
+            });
+        }
+
+        meetingForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const commentText = document.getElementById('comment-text').value;
+
+            if (!activeTopicId) {
+                showMessage('Por favor, selecione um tópico primeiro.', 'error');
+                return;
+            }
+            if (!commentText.trim()) return;
+
+            try {
+                const commentsCollection = collection(db, `/artifacts/${appId}/public/data/comments`);
+                await addDoc(commentsCollection, {
+                    topicId: activeTopicId,
+                    userId: userId,
+                    userName: userName,
+                    userRole: userRole,
+                    commentText,
+                    createdAt: serverTimestamp()
+                });
+                showMessage('Comentário adicionado!', 'success');
+                document.getElementById('comment-text').value = '';
+            } catch (error) {
+                console.error("Erro ao adicionar comentário:", error);
+                showMessage('Erro ao adicionar comentário. Tente novamente.', 'error');
+            }
+        });
+
+        // Adiciona um tópico de exemplo (pode ser expandido para o host adicionar novos)
+        async function addInitialTopics() {
+            const topicsCollection = collection(db, `/artifacts/${appId}/public/data/topics`);
+            const topics = [
+                "Revisão do balanço financeiro",
+                "Planejamento estratégico para 2024",
+                "Novos projetos e investimentos",
+                "Assuntos gerais e próximos passos"
+            ];
+            for (const title of topics) {
+                const q = query(topicsCollection, where("title", "==", title));
+                const querySnapshot = await getDocs(q);
+                if (querySnapshot.empty) {
+                    await addDoc(topicsCollection, {
+                        title,
+                        createdAt: serverTimestamp()
+                    });
+                }
+            }
+        }
+
+        addInitialTopics();
+
+        // Inicializa o app e o auth
+        async function initializeFirebaseApp() {
+            try {
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Erro na autenticação:", error);
+            }
+        }
+        initializeFirebaseApp();
+
+        // Sistema de mensagens
+        function showMessage(msg, type) {
+            const messageBox = document.getElementById('message-box');
+            messageBox.textContent = msg;
+            messageBox.className = `p-3 mb-4 rounded-lg text-white font-semibold transition-all duration-300 ${type === 'success' ? 'bg-green-500' : 'bg-red-500'}`;
+            messageBox.classList.remove('hidden');
+            setTimeout(() => messageBox.classList.add('hidden'), 5000);
+        }
+    </script>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f3f4f6;
-            color: #1f2937;
         }
+
         .container {
-            max-width: 800px;
-            margin: auto;
-            padding: 2rem;
-        }
-        .header {
-            background-color: #10b981;
-            color: white;
-            padding: 1.5rem;
-            border-radius: 0.75rem;
-            text-align: center;
-        }
-        .section-card {
-            background-color: white;
-            padding: 1.5rem;
-            border-radius: 0.75rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            margin-bottom: 1.5rem;
-        }
-        .topic-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            cursor: pointer;
-            padding: 1rem 0;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        .topic-header:hover {
-            background-color: #f9fafb;
-        }
-        .input-group {
-            margin-top: 1rem;
-        }
-        .input-group textarea {
-            width: 100%;
-            border: 1px solid #d1d5db;
-            border-radius: 0.5rem;
-            padding: 0.75rem;
-            resize: vertical;
-            transition: all 0.2s ease;
-        }
-        .input-group textarea:focus {
-            outline: none;
-            border-color: #10b981;
-            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
-        }
-        .submit-btn {
-            background-color: #3b82f6;
-            color: white;
-            font-weight: bold;
-            padding: 0.75rem 1.5rem;
-            border-radius: 0.5rem;
-            transition: all 0.2s ease;
-            cursor: pointer;
-        }
-        .submit-btn:hover {
-            background-color: #2563eb;
-        }
-        .save-btn {
-            background-color: #10b981;
-            color: white;
-            font-weight: bold;
-            padding: 0.75rem 1.5rem;
-            border-radius: 0.5rem;
-            transition: all 0.2s ease;
-            cursor: pointer;
-        }
-        .save-btn:hover {
-            background-color: #059669;
-        }
-        .note {
-            background-color: #f3f4f6;
-            padding: 0.75rem;
-            border-radius: 0.5rem;
-            margin-top: 0.5rem;
-            white-space: pre-wrap;
-            position: relative;
-        }
-        .note .delete-btn {
-            position: absolute;
-            top: 0.5rem;
-            right: 0.5rem;
-            color: #ef4444;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        .modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-        .modal-content {
-            background-color: white;
-            padding: 2rem;
-            border-radius: 0.75rem;
-            max-width: 500px;
-            text-align: center;
-            position: relative;
-        }
-        .modal-close-btn {
-            position: absolute;
-            top: 1rem;
-            right: 1rem;
-            font-size: 1.5rem;
-            cursor: pointer;
-            color: #9ca3af;
-        }
-        .status-box {
-            background-color: #e2e8f0;
-            padding: 0.75rem;
-            border-radius: 0.5rem;
-            margin-top: 1rem;
-            font-size: 0.875rem;
-            text-align: left;
+            max-width: 1200px;
         }
     </style>
 </head>
-<body class="bg-gray-100">
 
-    <!-- Modal for displaying messages -->
-    <div id="message-modal" class="modal hidden">
-        <div class="modal-content">
-            <span class="modal-close-btn" onclick="closeModal()">&times;</span>
-            <p id="modal-message" class="text-xl font-semibold text-gray-700"></p>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+    <div id="message-box" class="fixed top-4 right-4 z-50 p-4 rounded-lg hidden"></div>
+
+    <!-- Login Section -->
+    <section id="login-section" class="w-full max-w-sm p-6 bg-white rounded-xl shadow-lg">
+        <h2 class="text-2xl font-bold mb-6 text-center text-gray-800">Login dos Sócios</h2>
+        <form id="login-form" class="space-y-4">
+            <div>
+                <label for="login-id" class="block text-sm font-medium text-gray-700">ID do Sócio</label>
+                <input type="text" id="login-id" required
+                    class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+            <div>
+                <label for="login-password" class="block text-sm font-medium text-gray-700">Senha</label>
+                <input type="password" id="login-password" required
+                    class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+            <button type="submit"
+                class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Entrar</button>
+        </form>
+        <p class="mt-4 text-center text-sm text-gray-600">
+            Não tem uma conta? <button id="show-register"
+                class="text-indigo-600 hover:text-indigo-500 font-medium">Cadastre-se</button>
+        </p>
+    </section>
+
+    <!-- Register Section -->
+    <section id="register-section" class="w-full max-w-sm p-6 bg-white rounded-xl shadow-lg hidden">
+        <h2 class="text-2xl font-bold mb-6 text-center text-gray-800">Novo Cadastro</h2>
+        <form id="register-form" class="space-y-4">
+            <div>
+                <label for="register-name" class="block text-sm font-medium text-gray-700">Nome Completo</label>
+                <input type="text" id="register-name" required
+                    class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+            <div>
+                <label for="register-id" class="block text-sm font-medium text-gray-700">ID de Sócio (Ex: 001)</label>
+                <input type="text" id="register-id" required
+                    class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+            <div>
+                <label for="register-password" class="block text-sm font-medium text-gray-700">Senha</label>
+                <input type="password" id="register-password" required
+                    class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+            <button type="submit"
+                class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Cadastrar</button>
+        </form>
+        <p class="mt-4 text-center text-sm text-gray-600">
+            Já tem uma conta? <button id="show-login" class="text-indigo-600 hover:text-indigo-500 font-medium">Faça
+                login</button>
+        </p>
+    </section>
+
+    <!-- Meeting Section -->
+    <section id="meeting-section" class="w-full max-w-6xl p-6 bg-white rounded-xl shadow-lg hidden">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-800">Painel da Reunião</h1>
+            <button id="logout-btn"
+                class="text-sm text-gray-500 hover:text-gray-700 transition-colors duration-200">Sair</button>
         </div>
-    </div>
 
-    <div class="container mx-auto p-4 md:p-8">
-        <header class="header bg-emerald-500 rounded-xl shadow-lg mb-8 p-6">
-            <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight">REU-SET.25 Abertura</h1>
-            <p class="mt-2 text-base md:text-lg font-light">Pauta da Reunião com os Sócios - Acordo de Parceria</p>
-        </header>
-
-        <!-- Status Box para informar o usuário sobre a conexão e o ID -->
-        <div class="status-box">
-            <p><strong>Status de Conexão:</strong> <span id="connection-status">Conectando...</span></p>
-            <p><strong>Seu ID de Usuário:</strong> <span id="user-id">Carregando...</span></p>
+        <div class="mb-6 bg-gray-50 p-4 rounded-lg shadow-inner">
+            <p id="current-user-name" class="text-lg font-semibold text-gray-700"></p>
+            <p id="current-user-id" class="text-sm text-gray-500 mt-1"></p>
+            <p class="text-sm text-gray-500 mt-2">
+                Para que os outros sócios possam interagir, compartilhe o seu "ID de Usuário" com eles.
+                Eles usarão o próprio "ID de Sócio" e a senha para fazer login na mesma conta.
+            </p>
         </div>
 
-        <main id="main-content">
-            <!-- As seções serão geradas dinamicamente aqui -->
-        </main>
+        <div class="flex flex-col md:flex-row gap-6">
+            <!-- Tópicos -->
+            <div class="w-full md:w-1/3">
+                <h3 class="text-xl font-semibold mb-3 text-gray-700">Tópicos de Discussão</h3>
+                <div id="topics-list" class="flex flex-col space-y-2">
+                    <!-- Tópicos serão carregados aqui -->
+                </div>
+            </div>
 
-        <div class="mt-8 text-center">
-            <button onclick="saveDocument()" class="save-btn font-bold py-3 px-6 rounded-lg shadow-md hover:shadow-xl transition-transform transform hover:-translate-y-1">
-                Salvar e Exportar para PDF
-            </button>
+            <!-- Discussão e Comentários -->
+            <div class="w-full md:w-2/3">
+                <h3 class="text-xl font-semibold mb-3 text-gray-700">Discussão</h3>
+                <div id="comments-list"
+                    class="bg-gray-50 p-4 rounded-lg shadow-inner min-h-[300px] max-h-[500px] overflow-y-auto mb-4">
+                    <!-- Comentários serão carregados aqui -->
+                </div>
+
+                <form id="meeting-form" class="flex items-center gap-2">
+                    <textarea id="comment-text" placeholder="Adicionar sua opinião..." rows="2"
+                        class="flex-grow p-3 border border-gray-300 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                    <button type="submit"
+                        class="self-end px-6 py-3 bg-indigo-600 text-white font-semibold rounded-md shadow-lg hover:bg-indigo-700 transition-colors duration-200">Enviar</button>
+                </form>
+            </div>
         </div>
-    </div>
-
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        
-        // Globais fornecidas pelo ambiente. O Canvas injeta esses valores.
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        
-        let app = null;
-        let db = null;
-        let auth = null;
-        let userId = null;
-        let isAuthReady = false;
-
-        const pauta = [
-            {
-                id: 'p1',
-                title: 'Papéis e Responsabilidades',
-                items: [
-                    'Definição de Funções: Atribuir uma área principal de responsabilidade para cada sócio (ex: Financeiro, Vendas, Produção, Marketing).',
-                    'Tarefas Indesejadas: Discutir e decidir como serão resolvidas as tarefas que ninguém quer assumir.'
-                ]
-            },
-            {
-                id: 'p2',
-                title: 'Jornada de Trabalho e Horários',
-                items: [
-                    'Horário da Gráfica: Estabelecer o horário de funcionamento do espaço.',
-                    'Presença dos Sócios: Acordar se haverá um horário mínimo de presença de todos e como será feita a escala.'
-                ]
-            },
-            {
-                id: 'p3',
-                title: 'Acordo Societário',
-                items: [
-                    'Documento Formal: Discutir a necessidade de um acordo simples que defina direitos e deveres.',
-                    'Saída de um Sócio: Delimitar o que acontece caso alguém decida sair da sociedade no futuro.'
-                ]
-            },
-            {
-                id: 'p4',
-                title: 'Finanças e Contabilidade',
-                items: [
-                    'Aportes de Capital: Confirmar o investimento inicial de cada sócio.',
-                    'Conta Bancária: Decidir a gestão do caixa e quem será o responsável.',
-                    'Distribuição de Lucros: Estabelecer a periodicidade e o método de distribuição.',
-                    'Fundo de Reserva: Acordar a porcentagem do lucro que será destinada ao fundo de reserva.'
-                ]
-            },
-            {
-                id: 'p5',
-                title: 'Operação e Gestão',
-                items: [
-                    'Política de Preços: Criar uma tabela padronizada para os serviços.',
-                    'Tomada de Decisão: Definir um método para resolver impasses de votação.',
-                    'Uso do Espaço/Equipamentos: Criar regras para o uso dos equipamentos da gráfica em trabalhos pessoais.',
-                    'Reuniões: Agendar reuniões periódicas para acompanhamento.'
-                ]
-            }
-        ];
-
-        window.onload = async () => {
-            // Verifica se a configuração do Firebase foi fornecida pelo ambiente.
-            if (firebaseConfig) {
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                setupAuthListener();
-                renderPauta();
-                document.getElementById('connection-status').innerText = 'Conectado';
-            } else {
-                // Se não houver configuração, exibe uma mensagem de erro na interface
-                // e não tenta inicializar o Firebase.
-                document.getElementById('connection-status').innerText = 'Erro na Configuração';
-                document.getElementById('connection-status').classList.add('text-red-600', 'font-bold');
-                document.getElementById('user-id').innerText = 'Não disponível';
-                showMessage('Erro: A configuração do Firebase não foi encontrada. O aplicativo não pode se conectar ao banco de dados em tempo real. Por favor, recarregue a página.');
-                renderPauta(); // Renderiza a pauta mesmo sem o banco de dados
-            }
-        };
-
-        function setupAuthListener() {
-            onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                    userId = user.uid;
-                    isAuthReady = true;
-                    document.getElementById('user-id').innerText = userId;
-                    // Habilita campos e botões após a autenticação
-                    toggleInputElements(true);
-                    // Escuta por notas e decisões para todos os tópicos
-                    pauta.forEach(topic => {
-                        listenForNotes(topic.id);
-                        listenForDecisions(topic.id);
-                    });
-                } else {
-                    try {
-                         if (initialAuthToken) {
-                            await signInWithCustomToken(auth, initialAuthToken);
-                        } else {
-                            await signInAnonymously(auth);
-                        }
-                    } catch (error) {
-                        console.error('Erro na autenticação:', error);
-                        showMessage('Erro na autenticação. Tente novamente.');
-                    }
-                }
-            });
-        }
-
-        function toggleInputElements(enabled) {
-            const textareas = document.querySelectorAll('textarea');
-            const buttons = document.querySelectorAll('.submit-btn');
-            textareas.forEach(el => el.disabled = !enabled);
-            buttons.forEach(el => el.disabled = !enabled);
-        }
-
-        function renderPauta() {
-            const container = document.getElementById('main-content');
-            container.innerHTML = '';
-            pauta.forEach(section => {
-                const sectionEl = document.createElement('div');
-                sectionEl.className = 'section-card';
-                sectionEl.innerHTML = `
-                    <h2 class="text-2xl font-bold mb-4 text-gray-800">${section.title}</h2>
-                    <ul class="list-disc ml-6 space-y-2 text-gray-700">
-                        ${section.items.map(item => `<li>${item}</li>`).join('')}
-                    </ul>
-                    <div class="mt-6">
-                        <h3 class="text-xl font-semibold mb-2 text-gray-700">Decisão Acordada</h3>
-                        <div id="decisions-${section.id}" class="space-y-2"></div>
-                        <div class="input-group">
-                            <textarea id="decision-input-${section.id}" placeholder="Escreva a decisão final..." rows="2" disabled></textarea>
-                            <button id="add-decision-btn-${section.id}" onclick="addDecision('${section.id}')" class="submit-btn mt-2" disabled>Adicionar Decisão</button>
-                        </div>
-                    </div>
-                    <div class="mt-6">
-                        <h3 class="text-xl font-semibold mb-2 text-gray-700">Notas e Opiniões</h3>
-                        <div id="notes-${section.id}" class="space-y-2"></div>
-                        <div class="input-group">
-                            <textarea id="note-input-${section.id}" placeholder="Adicione sua opinião em tempo real..." rows="3" disabled></textarea>
-                            <button id="add-note-btn-${section.id}" onclick="addNote('${section.id}')" class="submit-btn mt-2" disabled>Adicionar Nota</button>
-                        </div>
-                    </div>
-                `;
-                container.appendChild(sectionEl);
-            });
-        }
-
-        window.addNote = async (topicId) => {
-            const btn = document.getElementById(`add-note-btn-${topicId}`);
-            if (!isAuthReady) {
-                showMessage('Autenticação em andamento ou erro de conexão. Por favor, aguarde ou recarregue a página.');
-                return;
-            }
-            const noteInput = document.getElementById(`note-input-${topicId}`);
-            const noteText = noteInput.value.trim();
-            if (noteText) {
-                btn.disabled = true;
-                btn.innerText = 'Salvando...';
-                try {
-                    const notesCollection = collection(db, `artifacts/${appId}/public/data/notes`);
-                    await addDoc(notesCollection, {
-                        topicId,
-                        content: noteText,
-                        authorId: userId,
-                        timestamp: new Date()
-                    });
-                    noteInput.value = '';
-                } catch (e) {
-                    console.error("Erro ao adicionar nota:", e);
-                    showMessage(`Erro ao adicionar a nota. Tente novamente. Detalhes: ${e.message}`);
-                } finally {
-                    btn.disabled = false;
-                    btn.innerText = 'Adicionar Nota';
-                }
-            } else {
-                showMessage('A nota não pode ser vazia.');
-            }
-        };
-
-        window.addDecision = async (topicId) => {
-            const btn = document.getElementById(`add-decision-btn-${topicId}`);
-            if (!isAuthReady) {
-                showMessage('Autenticação em andamento ou erro de conexão. Por favor, aguarde ou recarregue a página.');
-                return;
-            }
-            const decisionInput = document.getElementById(`decision-input-${topicId}`);
-            const decisionText = decisionInput.value.trim();
-            if (decisionText) {
-                btn.disabled = true;
-                btn.innerText = 'Salvando...';
-                try {
-                    const decisionsCollection = collection(db, `artifacts/${appId}/public/data/decisions`);
-                    await addDoc(decisionsCollection, {
-                        topicId,
-                        content: decisionText,
-                        authorId: userId,
-                        timestamp: new Date()
-                    });
-                    decisionInput.value = '';
-                } catch (e) {
-                    console.error("Erro ao adicionar decisão:", e);
-                    showMessage(`Erro ao adicionar a decisão. Tente novamente. Detalhes: ${e.message}`);
-                } finally {
-                    btn.disabled = false;
-                    btn.innerText = 'Adicionar Decisão';
-                }
-            } else {
-                showMessage('A decisão não pode ser vazia.');
-            }
-        };
-
-        function listenForNotes(topicId) {
-            if (!isAuthReady) return;
-            const notesCollection = collection(db, `artifacts/${appId}/public/data/notes`);
-            const q = query(notesCollection);
-            onSnapshot(q, (snapshot) => {
-                const notesContainer = document.getElementById(`notes-${topicId}`);
-                if (!notesContainer) return;
-                notesContainer.innerHTML = '';
-                const notes = [];
-                snapshot.forEach(doc => {
-                    notes.push({ id: doc.id, ...doc.data() });
-                });
-                notes.sort((a, b) => a.timestamp.toDate() - b.timestamp.toDate());
-                notes.filter(note => note.topicId === topicId).forEach(note => {
-                    const noteElement = document.createElement('div');
-                    noteElement.className = 'note';
-                    let deleteButton = '';
-                    // Verifica se o ID do usuário atual corresponde ao autor da nota para permitir a exclusão
-                    if (note.authorId === userId) {
-                        deleteButton = `<span onclick="deleteNote('${note.id}', '${note.authorId}')" class="delete-btn">x</span>`;
-                    }
-                    noteElement.innerHTML = `<p>${note.content}</p>${deleteButton}`;
-                    notesContainer.appendChild(noteElement);
-                });
-            });
-        }
-
-        function listenForDecisions(topicId) {
-            if (!isAuthReady) return;
-            const decisionsCollection = collection(db, `artifacts/${appId}/public/data/decisions`);
-            const q = query(decisionsCollection);
-            onSnapshot(q, (snapshot) => {
-                const decisionsContainer = document.getElementById(`decisions-${topicId}`);
-                if (!decisionsContainer) return;
-                decisionsContainer.innerHTML = '';
-                const decisions = [];
-                snapshot.forEach(doc => {
-                    decisions.push({ id: doc.id, ...doc.data() });
-                });
-                decisions.sort((a, b) => a.timestamp.toDate() - b.timestamp.toDate());
-                decisions.filter(decision => decision.topicId === topicId).forEach(decision => {
-                    const decisionElement = document.createElement('div');
-                    decisionElement.className = 'note bg-blue-100';
-                    let deleteButton = '';
-                    // Verifica se o ID do usuário atual corresponde ao autor da decisão para permitir a exclusão
-                    if (decision.authorId === userId) {
-                        deleteButton = `<span onclick="deleteDecision('${decision.id}', '${decision.authorId}')" class="delete-btn">x</span>`;
-                    }
-                    decisionElement.innerHTML = `<p>${decision.content}</p>${deleteButton}`;
-                    decisionsContainer.appendChild(decisionElement);
-                });
-            });
-        }
-
-        window.deleteNote = async (id, authorId) => {
-            // Verifica se o usuário atual é o autor da nota antes de tentar deletar
-            if (userId !== authorId) {
-                showMessage('Você só pode deletar as notas que você mesmo criou.');
-                return;
-            }
-            if (!isAuthReady) {
-                showMessage('Autenticação em andamento ou erro de conexão. Por favor, aguarde ou recarregue a página.');
-                return;
-            }
-            try {
-                const noteRef = doc(db, `artifacts/${appId}/public/data/notes`, id);
-                await deleteDoc(noteRef);
-            } catch (e) {
-                console.error("Erro ao deletar nota:", e);
-                showMessage('Erro ao deletar a nota. Tente novamente.');
-            }
-        };
-
-        window.deleteDecision = async (id, authorId) => {
-            // Verifica se o usuário atual é o autor da decisão antes de tentar deletar
-            if (userId !== authorId) {
-                showMessage('Você só pode deletar as decisões que você mesmo criou.');
-                return;
-            }
-            if (!isAuthReady) {
-                showMessage('Autenticação em andamento ou erro de conexão. Por favor, aguarde ou recarregue a página.');
-                return;
-            }
-            try {
-                const decisionRef = doc(db, `artifacts/${appId}/public/data/decisions`, id);
-                await deleteDoc(decisionRef);
-            } catch (e) {
-                console.error("Erro ao deletar decisão:", e);
-                showMessage('Erro ao deletar a decisão. Tente novamente.');
-            }
-        };
-
-        window.saveDocument = async () => {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
-            let y = 10;
-            const margin = 10;
-
-            doc.setFontSize(22);
-            doc.text("REU-SET.25 Abertura", 105, y, null, null, "center");
-            y += 10;
-            doc.setFontSize(14);
-            doc.text("Pauta da Reunião com os Sócios - Acordo de Parceria", 105, y, null, null, "center");
-            y += 20;
-
-            for (const section of pauta) {
-                doc.setFontSize(16);
-                doc.text(section.title, margin, y);
-                y += 10;
-
-                doc.setFontSize(12);
-                doc.text("Tópicos:", margin, y);
-                y += 5;
-
-                for (const item of section.items) {
-                    const lines = doc.splitTextToSize(item, 180);
-                    doc.text(lines, margin + 5, y);
-                    y += (lines.length * 5) + 5;
-                }
-
-                doc.text("Decisão Acordada:", margin, y);
-                y += 5;
-                const decisionsContainer = document.getElementById(`decisions-${section.id}`);
-                if (decisionsContainer) {
-                    const decisions = decisionsContainer.innerText.trim();
-                    if (decisions) {
-                        const lines = doc.splitTextToSize(decisions, 180);
-                        doc.text(lines, margin + 5, y);
-                        y += (lines.length * 5) + 5;
-                    } else {
-                        doc.text("Nenhuma decisão registrada.", margin + 5, y);
-                        y += 10;
-                    }
-                }
-
-                doc.text("Notas e Opiniões:", margin, y);
-                y += 5;
-                const notesContainer = document.getElementById(`notes-${section.id}`);
-                if (notesContainer) {
-                    const notes = notesContainer.innerText.trim();
-                    if (notes) {
-                        const lines = doc.splitTextToSize(notes, 180);
-                        doc.text(lines, margin + 5, y);
-                        y += (lines.length * 5) + 5;
-                    } else {
-                        doc.text("Nenhuma nota registrada.", margin + 5, y);
-                        y += 10;
-                    }
-                }
-                if (y > 280) { // New page if content exceeds height
-                    doc.addPage();
-                    y = 10;
-                }
-            }
-
-            doc.save("reuniao_reus.pdf");
-            showMessage('Documento salvo como PDF com sucesso!');
-        };
-
-        function showMessage(message) {
-            const modal = document.getElementById('message-modal');
-            const modalMessage = document.getElementById('modal-message');
-            modalMessage.innerText = message;
-            modal.classList.remove('hidden');
-        }
-
-        function closeModal() {
-            const modal = document.getElementById('message-modal');
-            modal.classList.add('hidden');
-        }
-        window.closeModal = closeModal;
-    </script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.3.1/jspdf.umd.min.js"></script>
+    </section>
 </body>
+
 </html>
