@@ -7,26 +7,16 @@
     <title>Reunião de Sócios</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="module">
-        // Import the functions you need from the SDKs you need
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
-        // TODO: Add SDKs for Firebase products that you want to use
-        // https://firebase.google.com/docs/web/setup#available-libraries
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, orderBy, addDoc, serverTimestamp, deleteDoc, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Your web app's Firebase configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyDTPoCkmk4fGfXaDzy15NCCMujG83LAqIM",
-            authDomain: "minha1app.firebaseapp.com",
-            projectId: "minha1app",
-            storageBucket: "minha1app.firebasestorage.app",
-            messagingSenderId: "268276863555",
-            appId: "1:268276863555:web:a336a989133aed3ce6faf6"
-        };
-
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
+        // As variáveis de configuração do Firebase são fornecidas pelo ambiente.
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         // Inicializa Firebase
-
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
